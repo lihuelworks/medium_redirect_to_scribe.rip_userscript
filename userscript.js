@@ -1,26 +1,39 @@
 // ==UserScript==
 // @name         Redirect Medium Anywhere to scribe.rip
-// @namespace    https://davidblue.wtf
-// @version      0.3
-// @description  Auto-redirect Medium articles even on custom domains
+// @version      0.5
 // @match        *://*/*
 // @run-at       document-start
-// @license      Unlicense
 // ==/UserScript==
 
-(function () {
-    "use strict";
+(function() {
+    if (location.href.includes("scribe.rip")) return;
 
-    const url = location.href;
+    // Medium always injects a signature script: "__GRAPHQL_URI__"
+    // and JSON-LD with "@type":"Article" and "publisher":{"@id":"https://medium.com/"}
+    function mediumFingerprint(html) {
+        return (
+            html.includes('__GRAPHQL_URI__') ||
+            html.includes('"publisher":{"@id":"https://medium.com/"') ||
+            html.includes('"@id":"https://medium.com/#publisher"')
+        );
+    }
 
-    // detect Medium article format
-    const isMediumURL =
-        /\/p\/[a-f0-9]{12}$/i.test(url) ||          // canonical Medium article ids
-        /-[a-f0-9]{12,}$/i.test(url);               // slug ending in long id
+    let done = false;
 
-    if (!isMediumURL) return;
-    if (url.includes("scribe.rip")) return;
+    const observer = new MutationObserver(() => {
+        if (done) return;
 
-    const newUrl = "https://scribe.rip" + location.pathname + location.search + location.hash;
-    location.replace(newUrl);
+        const html = document.documentElement.innerHTML;
+        if (mediumFingerprint(html)) {
+            done = true;
+            location.replace(
+                "https://scribe.rip" +
+                location.pathname +
+                location.search +
+                location.hash
+            );
+        }
+    });
+
+    observer.observe(document.documentElement, { childList: true, subtree: true });
 })();
